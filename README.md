@@ -15,7 +15,7 @@ This tool extracts and validates financing costs from CTCAC application Excel fi
 - **Derived Metrics**: Calculates:
   - Combined financing costs
   - Financing costs per unit
-  - Financing costs per square foot
+  - Financing costs per square foot (uses "Total square footage of all project structures (excluding commercial/retail)" from Application tab, column D)
   - Financing costs as percentage of hard costs
 - **Summary Report**: Generates an Excel report with all extracted data and metrics
 
@@ -99,7 +99,9 @@ Applications with validation errors are clearly flagged in the output.
 ### Notes
 
 - Downloaded Excel files are saved in the `applications/` directory
-- The parser handles variations in Excel file structure
+- The parser uses fixed positions for data extraction:
+  - **Total number of units**: Extracted from the "Total number of units" row in column D (Application tab)
+  - **Total square footage**: Extracted from the "Total square footage of all project structures (excluding commercial/retail)" row in column D (Application tab)
 - Missing data is flagged but doesn't prevent processing
 - If "New Construction" total is not found, it's flagged as a warning
 

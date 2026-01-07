@@ -29,7 +29,7 @@ class ExcelParser:
                 if "sources" in sheet_name.lower() and "uses" in sheet_name.lower():
                     self.sources_uses_sheet = self.wb[sheet_name]
                 elif (
-                    "application" in sheet_name.lower()
+                    sheet_name.lower() == "application"
                     and self.application_sheet is None
                 ):
                     self.application_sheet = self.wb[sheet_name]
@@ -276,64 +276,68 @@ class ExcelParser:
         return None
 
     def extract_units_and_sf(self) -> Tuple[Optional[int], Optional[float]]:
-        """Extract total units and square footage from Application tab around row 430"""
+        """
+        Extract total units and square footage from Application tab.
+
+        Dynamically finds labels (tries columns D and G), then extracts values from Column AG (33):
+        - "Total number of units"
+        - "Total square footage of all project structures"
+        """
         if not self.application_sheet:
             return None, None
 
         sheet = self.application_sheet
-        units = None
-        sf = None
 
-        # Search around row 430 (as specified by user)
-        # Look in a range around row 430
-        search_start = max(400, 1)
-        search_end = min(500, sheet.max_row + 1)
+        # Try multiple columns for labels (D=4, G=7)
+        label_columns = [4, 7]  # Columns D and G
+        # Value columns to try: AG (33) first, then L (12) as fallback
+        value_columns = [33, 12]  # Columns AG and L
 
-        for row in range(search_start, search_end):
-            cell_value = str(sheet.cell(row, 1).value or "").lower()
+        units: Optional[int] = None
+        sf: Optional[float] = None
 
-            # Find total units - look for exact match
-            if "total number of units" in cell_value and units is None:
-                # Look for value in column B or nearby columns
-                for col in [2, 3, 4, 5]:
-                    value = self.extract_number_from_cell(sheet, row, col)
-                    if value and value > 0:
-                        units = int(value)
-                        break
-
-            # Find total square footage - look for exact match
-            if (
-                "total square footage of all residential units" in cell_value
-                and sf is None
-            ):
-                # Look for value in column B or nearby columns
-                for col in [2, 3, 4, 5]:
-                    value = self.extract_number_from_cell(sheet, row, col)
-                    if value and value > 0:
-                        sf = value
-                        break
-
-        # If not found around row 430, do a broader search
-        if units is None or sf is None:
-            for row in range(1, min(sheet.max_row + 1, 500)):
-                cell_value = str(sheet.cell(row, 1).value or "").lower()
-
-                if units is None and "total number of units" in cell_value:
-                    for col in [2, 3, 4, 5]:
-                        value = self.extract_number_from_cell(sheet, row, col)
-                        if value and value > 0:
-                            units = int(value)
+        # 1. Dynamic search for Total number of units
+        # Search for label in multiple columns, extract value from AG or L
+        for row in range(1, sheet.max_row + 1):
+            for col in label_columns:
+                cell_value = sheet.cell(row=row, column=col).value
+                if cell_value and "total number of units" in str(cell_value).lower():
+                    # Skip if it's the "excluding managers" version
+                    cell_lower = str(cell_value).lower()
+                    if "excluding managers" not in cell_lower:
+                        # Try AG first, then L
+                        for val_col in value_columns:
+                            units_value = self.extract_number_from_cell(
+                                sheet, row, val_col
+                            )
+                            if units_value > 0:
+                                units = int(units_value)
+                                break
+                        if units is not None:
                             break
+            if units is not None:
+                break
 
+        # 2. Dynamic search for Total square footage of all project structures
+        # Search for label in multiple columns, extract value from AG or L
+        for row in range(1, sheet.max_row + 1):
+            for col in label_columns:
+                cell_value = sheet.cell(row=row, column=col).value
                 if (
-                    sf is None
-                    and "total square footage of all residential units" in cell_value
+                    cell_value
+                    and "total square footage of all project structures"
+                    in str(cell_value).lower()
                 ):
-                    for col in [2, 3, 4, 5]:
-                        value = self.extract_number_from_cell(sheet, row, col)
-                        if value and value > 0:
-                            sf = value
+                    # Try AG first, then L
+                    for val_col in value_columns:
+                        sf_value = self.extract_number_from_cell(sheet, row, val_col)
+                        if sf_value > 0:
+                            sf = sf_value
                             break
+                    if sf is not None:
+                        break
+            if sf is not None:
+                break
 
         return units, sf
 
